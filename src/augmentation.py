@@ -7,6 +7,7 @@ To help the model generalize, we randomly apply the following transforms to a
   * Brightness      -- random brightening / darkening.
   * Zooming         -- small *centered* scale-in crop.
   * Panning         -- random translation; horizontal shift also adjusts steering.
+  * Rotation        -- small *centered* tilt of a few degrees.
 
 Every transform is applied independently with a configurable probability, so any
 given image may receive none, some, or all of them.
@@ -17,9 +18,11 @@ angle and ends up *under-steering* (predicting angles that are too small, so the
 car drifts to the outside of curves and leaves the lane). That is why:
   * ``flip`` negates the steering angle,
   * ``pan`` shifts the steering angle in proportion to the horizontal shift,
-  * ``zoom`` crops around the image center so the road does not move sideways.
-Rotation was removed because a rotated frame never occurs in the simulator and
-only injects label noise.
+  * ``zoom`` crops around the image center so the road does not move sideways,
+  * ``rotate`` turns the frame about its center, so the road stays centered.
+Rotation is deliberately limited to a few degrees and given a lower probability
+than the other transforms: the simulator's horizon is always level, so a large
+tilt is a frame the car never actually sees and would only inject label noise.
 
 IMPORTANT: augmentation must only be applied to the **training** set, never to
 the validation/test set.
@@ -105,10 +108,27 @@ def pan(
     return shifted, steering
 
 
+def rotate(
+    image: np.ndarray,
+    max_angle: float = 5.0,
+) -> np.ndarray:
+    """Rotate the image by a random angle in ``[-max_angle, max_angle]`` degrees.
+
+    The rotation is about the image **center**, so the road keeps its left/right
+    position and the original steering angle stays valid. ``max_angle`` is small
+    on purpose -- see the module docstring.
+    """
+    h, w = image.shape[:2]
+    angle = np.random.uniform(-max_angle, max_angle)
+    matrix = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), angle, 1.0)
+    return cv2.warpAffine(image, matrix, (w, h), borderMode=cv2.BORDER_REPLICATE)
+
+
 def random_augment(
     image: np.ndarray,
     steering: float,
     prob: float = 0.4,
+    rotate_prob: float = 0.15,
 ) -> tuple[np.ndarray, float]:
     """Randomly apply the augmentation transforms to a single sample.
 
@@ -126,6 +146,9 @@ def random_augment(
         The steering label associated with the image.
     prob:
         Per-transform probability of being applied.
+    rotate_prob:
+        Probability of applying ``rotate``; kept lower than ``prob`` because the
+        simulator's horizon is always level.
 
     Returns
     -------
@@ -138,6 +161,8 @@ def random_augment(
         image, steering = pan(image, steering)
     if np.random.random() < prob:
         image = zoom(image)
+    if np.random.random() < rotate_prob:
+        image = rotate(image)
     if np.random.random() < prob:
         image = adjust_brightness(image)
     if np.random.random() < prob:

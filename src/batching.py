@@ -8,8 +8,10 @@ Behaviour:
   * Training batches: a random subset of samples is drawn each step and each
     image is randomly augmented (flip / brightness / zoom / pan / rotate) before
     preprocessing. Augmentation is applied **only** when ``is_training`` is True.
-  * Validation batches: images are used as-is (no augmentation), only
-    preprocessed, so the model is always evaluated on realistic frames.
+  * Validation batches: samples are walked in order (no random draws) and images
+    are used as-is (no augmentation), only preprocessed, so the model is always
+    evaluated on realistic frames. Walking in order means ``val_loss`` is the
+    mean over the validation set rather than over a random resample of it.
 
 Every image - augmented or not - goes through the same :func:`preprocess`
 pipeline used at inference time.
@@ -43,10 +45,12 @@ def batch_generator(
     batch_size:
         Number of samples per yielded batch.
     is_training:
-        If True, apply random augmentation to each image. If False, only
-        preprocess (used for validation/testing).
+        If True, draw samples at random and apply random augmentation to each
+        image. If False, walk the samples in order and only preprocess them
+        (used for validation/testing).
     seed:
-        Optional seed for reproducible sampling/augmentation.
+        Optional seed for reproducible sampling/augmentation. Unused when
+        ``is_training`` is False, since those batches are deterministic.
 
     Yields
     ------
@@ -58,13 +62,21 @@ def batch_generator(
     steerings = np.asarray(steerings, dtype=np.float32)
     n = len(image_paths)
     rng = np.random.default_rng(seed)
+    cursor = 0  # position of the sequential (validation) pass
 
     while True:
+        if is_training:
+            indices = rng.integers(0, n, size=batch_size)
+        else:
+            # Walk the set in order and wrap around, so that ceil(n / batch_size)
+            # consecutive batches cover every sample.
+            indices = (cursor + np.arange(batch_size)) % n
+            cursor = (cursor + batch_size) % n
+
         batch_images = []
         batch_steerings = []
 
-        for _ in range(batch_size):
-            index = int(rng.integers(0, n))
+        for index in indices:
             image = load_image(image_paths[index])
             steering = float(steerings[index])
 
