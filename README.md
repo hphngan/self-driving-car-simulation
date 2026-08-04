@@ -171,6 +171,56 @@ Stop with `Ctrl+C` in the server terminal.
 
 ---
 
+## To run this on Windows
+
+You may experience these errors when running on Windows:
+
+### 1. `TestSimulation.py` — load model without recompiling
+
+`model.h5` was saved in the legacy Keras H5 format (from the old
+TensorFlow-2.3-era environment), which stores the loss as a string
+reference (`"keras.metrics.mse"`). Keras 3 can't deserialize that
+reference when reconstructing the optimizer/loss config on load, and
+raises:
+
+```
+ValueError: Could not deserialize 'keras.metrics.mse' because it is not a KerasSaveable subclass
+```
+
+Since `TestSimulation.py` only runs inference (no further training), the
+compile config isn't needed. Fixed by loading with `compile=False`:
+
+```python
+model = load_model('model.h5', compile=False)
+```
+
+### 2. `TestSimulation.py` — fix scalar conversion of the prediction
+
+`model.predict(...)` returns a NumPy array of shape `(1, 1)`. NumPy 2.x
+removed the old behavior of allowing `float()` on any size-1 array
+regardless of dimensions — only true 0-d arrays convert directly now.
+This raised:
+
+```
+TypeError: only 0-dimensional arrays can be converted to Python scalars
+```
+
+Fixed by indexing out the scalar element before converting, and passing
+`verbose=0` so the per-frame progress bar doesn't spam the console while
+driving:
+
+```python
+steering = float(model.predict(image, verbose=0)[0][0])
+```
+
+### GPU note
+
+TensorFlow >= 2.11 does not support GPU on native Windows (you'll see
+`WARNING:tensorflow:TensorFlow GPU support is not available on native
+Windows for TensorFlow >= 2.11`). This is expected — training/inference
+run on CPU unless you switch to WSL2 or the TensorFlow-DirectML plugin.
+
+
 ## 5. Model architecture (Nvidia)
 
 | Layer             | Details                        |
