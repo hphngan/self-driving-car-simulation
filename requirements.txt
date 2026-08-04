@@ -1,0 +1,35 @@
+# Reproduces the working project environment (macOS, Apple Silicon, Python 3.8).
+# These versions are used in the `dps920` conda env and are required for the
+# Udacity simulator (TestSimulation.py) to communicate correctly.
+#
+# Recommended install order (inside a Python 3.8 conda env):
+#   conda create -n dps920 python=3.8
+#   conda activate dps920
+#   pip install -r requirements.txt
+#
+# On Intel/Windows/Linux, replace the two tensorflow-macos/metal lines with:
+#   tensorflow==2.13.0
+
+# --- Deep learning ---
+tensorflow-macos==2.13.0
+tensorflow-metal==1.0.1
+
+# --- Data / numerics / plotting ---
+numpy==1.24.3
+pandas==2.0.3
+scikit-learn==1.3.2
+matplotlib==3.7.5
+opencv-python
+Pillow
+
+# --- Simulator communication stack (pinned for the Udacity beta simulator) ---
+python-socketio==4.2.1
+python-engineio==3.8.2
+eventlet==0.25.1
+dnspython==1.16.0
+Flask==1.1.2
+Werkzeug==2.0.1
+Jinja2==3.0.1
+itsdangerous==2.0.1
+MarkupSafe==2.0.1
+click==8.0.1
